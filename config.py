@@ -12,10 +12,10 @@ feature_config = {
 }
 
 sliding_windows_config = {
-    'xy_overlap' : (0.8, 0.8),
+    'xy_overlap' : (0.75, 0.8),
     'xy_window' : [64, 64],
-    'y_start_stop' : [340, 680],
+    'y_start_stop' : [320, 680],
     'x_start_stop' : [760, 1260],
-    'window_sizes' : [64, 96, 140],
+    'window_sizes' : [60, 100, 150],
     'heat_threshold' : 2
 }
