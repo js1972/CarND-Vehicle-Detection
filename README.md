@@ -49,55 +49,72 @@ feature_config = {
 Example HOG features:
 ![alt text](output_images/HOG features.png)
 
+#### Training a classifier
 
+I trained a linear SVM classifier using the extracted feature vector from each image as can be seen in cell 5 of the notebook.
+The steps to train the classifier in this cell include:
+- read in all positive images (with cars)
+- read in all negative images (without cars)
+- instantiate our feature extractor `ImageFeatureExtractor` with our desired config
+- Stack the feature vectors together and create our labels
+- Use sklearn's `train_test_split` to give us our training and test sets
+- Finally instantiate a `LinearSVC`, fit it to our features and test the accuracy.
 
-####3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
+Note: I found acceptable accuracy with using the default LinearSVM hyper-parameters of greater than 99%.
+The code from this cell is replicated into python script `train.py` so that we can train and process our data outside the notebook.
 
-I trained a linear SVM using...
+### Sliding Window Search
+I have used a sliding window search to scan images for the objects we are looking for. This algorithm is implemented in two stages:
+1. Pyramid search or scale search - this is where we slide our windows across the image at different scales. This enables us to detect objects that can be varying sizes. With this dataset the objects are cars, which are typically smaller as they get farther away. See the code in method `process` of class `ObjectDetector` (Cell 2 of the notebook) where it calls `get_pyramid_windows`. This method in-turn calls method `get_sliding_windows` passing it a different scale (or image size) on each iteration. `get_sliding_windows` returns an array of window points (rectangles). The windows are slid across the image with an amount of overlap that is configured - the current values use 80% overlap. Note that we ignore the top section of the image as specified in the `y_start_stop` configuration parameter as *typically* cars won't be found in the sky.
+2. Slide the windows. This is implemented in the `find_objects` method, which is passed the list of windows previously computed and loops through them all  and runs each one through our pipeline of extracting features and classification. A list of window with predicted hits is returned.
 
-###Sliding Window Search
+Example of positive sliding window detection:
 
-####1. Describe how (and identify where in your code) you implemented a sliding window search.  How did you decide what scales to search and how much to overlap windows?
+![Example showing bounding boxes with detected objects
+](output_images/bounding_boxes_found.png)
 
-I decided to search random window positions at random scales all over the image and came up with this (ok just kidding I didn't actually ;):
+Current configuration settings for the sliding windows algorithm:
+```
+sliding_windows_config = {
+    'xy_overlap' : (0.8, 0.8),
+    'xy_window' : [64, 64],
+    'y_start_stop' : [340, 680],
+    'x_start_stop' : [760, 1260],
+    'window_sizes' : [64, 96, 140],
+    'heat_threshold' : 2
+}
+```
 
-![alt text][image3]
+Example output of our detection pipeline showing positive hits from the sliding windows; blob detection (described below) and final output bounding boxes:
+![Example images run through the detection pipeline](output_images/final_bboxes.png)
 
-####2. Show some examples of test images to demonstrate how your pipeline is working.  What did you do to optimize the performance of your classifier?
+The above picture shows 4 outputs from my detection pipeline.
+1. The first image is the output of our sliding windows algorithm as implemented in the `find_objects` method described above. This shows the sliding windows that had positive detections.
+2. An issue with HOG feature extraction is that you can get lots of false- positives. To counter this we build up a "heatmap" of our sliding window detections. This is done by creating a 2D array with the same dimensions of the image (see methods `add_heat` and `threshold_heatmap` in the `ObjectDetector` class - notebook cell 2) and adding a +1 to each point within the area of the bounding box. The third image above actually shows the heatmap - the hotter the pixels indicates that it was within lots of sliding window detections. I then threshold mask the heat and use `scipy.ndimage.measurements.label` to perform blob detection. This segregates our found sliding windows into detected individual objects as shown in the final image above.
 
-Ultimately I searched on two scales using YCrCb 3-channel HOG features plus spatially binned color and histograms of color in the feature vector, which provided a nice result.  Here are some example images:
-
-![alt text][image4]
+An examples of the full detection pipeline on still images:
+![alt text](output_images/output.png)
 ---
 
 ### Video Implementation
 
-####1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (somewhat wobbly or unstable bounding boxes are ok as long as you are identifying the vehicles most of the time with minimal false positives.)
-Here's a [link to my video result](./project_video.mp4)
-
-
-####2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
-
-I recorded the positions of positive detections in each frame of the video.  From the positive detections I created a heatmap and then thresholded that map to identify vehicle positions.  I then used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap.  I then assumed each blob corresponded to a vehicle.  I constructed bounding boxes to cover the area of each blob detected.  
-
-Here's an example result showing the heatmap from a series of frames of video, the result of `scipy.ndimage.measurements.label()` and the bounding boxes then overlaid on the last frame of video:
-
-### Here are six frames and their corresponding heatmaps:
-
-![alt text][image5]
-
-### Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all six frames:
-![alt text][image6]
-
-### Here the resulting bounding boxes are drawn onto the last frame in the series:
-![alt text][image7]
-
-
+Here's a [link to my video result](output_images/project_video_output.mp4)
 
 ---
 
-###Discussion
+### Discussion
+The biggest issue I found with HOG feature extraction is the high number of false positives as well as the processing time.
+Careful tuning of the blob detection was magic at reducing the false positives. Thresholding the heatmap carefully also enabled a fine-grained solution such that car next to each other still showed up as two objects instead of a combined detection.
 
-####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+As for the processing time. This is a challenge. The current configuration parameters are tuned for maximum detections with a very large number of sliding windows at three different image scales. For every single window we must run our HOG feature extraction and classify the result. The duration to perform this over the project video (50 seconds of footage) is over 1 hr on a 2016 MacBook Pro!
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+An interesting exercise will be to gradually pair back the number of scales and windows (via the amount of overlap) to see if we can get real-time processing without too many missed detections.
+
+Notes:
+The calculation of our spatial binning and colour histograms adds a negligible amount of time to the process so are not discussed here.
+The code as implemented in the Jupyter Notebook also exists in the following python scripts so that our detector can easily be used in other projects:
+- `image_feature_extractor.py` - class for feature extraction from images (using HOG, Spatial binning, Colour histograms)
+- `object_detector.py` - class for detecting objects in images using a scaled sliding window technique and blob detection/thresholding
+- `train.py` - script to extract features for a dataset and train a Linear SVM classifier.
+- `config.py` - configuration parameters for feature extraction and sliding-window algorithm
+- `process.py` - process a vide file with the Object Detection pipeline.

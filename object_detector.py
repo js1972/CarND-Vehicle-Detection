@@ -1,21 +1,6 @@
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
-
 import numpy as np
-import pickle
 import cv2
-from skimage.feature import hog
-from sklearn.svm import LinearSVC
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-import glob
-import time
-
 from scipy.ndimage.measurements import label
-
-# Import everything needed to edit/save/watch video clips
-from moviepy.editor import VideoFileClip
-from IPython.display import HTML
 
 from image_feature_extractor import ImageFeatureExtractor
 
@@ -49,11 +34,11 @@ class ObjectDetector(object):
             image = image.astype(np.float32) / float(np.max(image))
 
         windows = self.get_pyramid_windows(image)
-        hot_windows = self.find_objects(image, windows)
-        window_img = self.draw_boxes(draw_image, hot_windows)
+        positive_detections = self.find_objects(image, windows)
+        # window_img = self.draw_boxes(draw_image, positive_detections)
         # new heatmap
-        heat = np.zeros_like(window_img[:, :, 0]).astype(np.float)
-        heatmap = self.add_heat(heat, hot_windows)
+        heat = np.zeros_like(draw_image[:, :, 0]).astype(np.float)
+        heatmap = self.add_heat(heat, positive_detections)
         heatmap = self.threshold_heatmap(heatmap, self.sliding_window_config['heat_threshold'])
         # Blob extraction
         # Implements: https://en.wikipedia.org/wiki/Connected-component_labeling
@@ -63,37 +48,31 @@ class ObjectDetector(object):
 
     def find_objects(self, img, windows):
         """
+        Loop though all the provided windows and resize the part of the image occupied
+        by the window to 64 x 64 to match the size of our test data image.
+        With each resized part of the image: extract features and classify.
         """
         # Define a function you will pass an image
         # and the list of windows to be searched (output of slide_windows())
-        # def search_windows(img, windows, clf, scaler, color_space='RGB',
-        #           spatial_size=(32, 32), hist_bins=32,
-        #           hist_range=(0, 256), orient=9,
-        #           pix_per_cell=8, cell_per_block=2,
-        #           hog_channel=0, spatial_feat=True,
-        #           hist_feat=True, hog_feat=True):
-
-        on_windows = []
+        found_windows = []
         for window in windows:
             test_img = cv2.resize(img[window[0][1]:window[1][1], window[0][0]:window[1][0]], (64, 64))
             features = ImageFeatureExtractor(self.config).extract_features(test_img)
             test_features = self.standard_scaler.transform(np.array(features).reshape(1, -1))
             prediction = self.classifier.predict(test_features)
             if prediction == 1:
-                on_windows.append(window)
+                found_windows.append(window)
 
-        return on_windows
+        return found_windows
 
     def get_pyramid_windows(self, image):
         """
-        Was average_sliding_windows()
-
         Repeatedly get sliding windows for different window sizes.
         This will allow our detector to find smaller and larger sized
         objects.
         """
         windows = []
-        for xy in self.sliding_window_config['window_sizes']:  # [64, 96, 140]:
+        for xy in self.sliding_window_config['window_sizes']:
             window = self.get_sliding_windows(image, xy_window=(xy, xy))
             windows += window
         return windows
@@ -108,8 +87,6 @@ class ObjectDetector(object):
         Return a list of windows (rectangles) that have been moved over
         the image with the given size and configured overlap and start/stop
         positions.
-
-        slide_window()
         """
         # If x and/or y start/stop positions not defined, set to image size
         if self.sliding_window_config['x_start_stop'][0] == None:

@@ -1,21 +1,11 @@
 import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
-
 import numpy as np
 import pickle
-import cv2
-from skimage.feature import hog
 from sklearn.svm import LinearSVC
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 import glob
 import time
-
-from scipy.ndimage.measurements import label
-
-# Import everything needed to edit/save/watch video clips
-from moviepy.editor import VideoFileClip
-from IPython.display import HTML
 
 from image_feature_extractor import ImageFeatureExtractor
 import config
@@ -62,8 +52,8 @@ if __name__ == '__main__':
     X_train, X_test, y_train, y_test = train_test_split(
         scaled_X, y, test_size=0.2, random_state=rand_state)
 
-    print('Using:', feature_config['orient'], 'orientations', feature_config['pix_per_cell'],
-          'pixels per cell and', feature_config['cell_per_block'], 'cells per block')
+    print('Using:', config.feature_config['orient'], 'orientations', config.feature_config['pix_per_cell'],
+          'pixels per cell and', config.feature_config['cell_per_block'], 'cells per block')
     print('Feature vector length:', len(X_train[0]))
 
     # Use a linear SVC

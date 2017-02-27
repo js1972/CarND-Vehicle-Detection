@@ -1,21 +1,6 @@
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
-
 import numpy as np
-import pickle
 import cv2
 from skimage.feature import hog
-from sklearn.svm import LinearSVC
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-import glob
-import time
-
-from scipy.ndimage.measurements import label
-
-# Import everything needed to edit/save/watch video clips
-from moviepy.editor import VideoFileClip
-from IPython.display import HTML
 
 
 class ImageFeatureExtractor(object):
@@ -38,6 +23,7 @@ class ImageFeatureExtractor(object):
         """
         # Create a list to append feature vectors to
         features = []
+        test_image = []
 
         if np.max(image) > 1:
             image = image.astype(np.float32) / float(np.max(image))
@@ -83,6 +69,20 @@ class ImageFeatureExtractor(object):
         # Return list of feature vectors
         return np.concatenate(features)
 
+    def get_hog_features_image(self, image, channel):
+        """
+        Extract HOG features of an image and specific colour channel
+        and return the HOG features as an image.
+        :param image: Image to extract HOG features
+        :param channel: Whcih image colour channel to use (0, 1 or 2)
+        :return: Image of HOG features visualised
+        """
+        if np.max(image) > 1:
+            image = image.astype(np.float32) / float(np.max(image))
+
+        _, hog_image = self.get_hog_features(image[:, :, channel], True)
+        return hog_image
+
     def bin_spatial(self, img):
         size = self.config['spatial_size']
         color1 = cv2.resize(img[:, :, 0], size).ravel()
@@ -101,13 +101,24 @@ class ImageFeatureExtractor(object):
         # Return the individual histograms, bin_centers and feature vector
         return hist_features
 
-    def get_hog_features(self, image):
-        features = hog(image,
-                       orientations=self.config['orient'],
-                       pixels_per_cell=(self.config['pix_per_cell'], self.config['pix_per_cell']),
-                       cells_per_block=(self.config['cell_per_block'], self.config['cell_per_block']),
-                       transform_sqrt=False,
-                       visualise=False,
-                       feature_vector=True)
+    def get_hog_features(self, image, visualise=False):
+        if visualise == True:
+            features, image = hog(image,
+                                  orientations=self.config['orient'],
+                                  pixels_per_cell=(self.config['pix_per_cell'], self.config['pix_per_cell']),
+                                  cells_per_block=(self.config['cell_per_block'], self.config['cell_per_block']),
+                                  transform_sqrt=False,
+                                  visualise=True,
+                                  feature_vector=True)
 
-        return features
+            return features, image
+        else:
+            features = hog(image,
+                           orientations=self.config['orient'],
+                           pixels_per_cell=(self.config['pix_per_cell'], self.config['pix_per_cell']),
+                           cells_per_block=(self.config['cell_per_block'], self.config['cell_per_block']),
+                           transform_sqrt=False,
+                           visualise=False,
+                           feature_vector=True)
+
+            return features

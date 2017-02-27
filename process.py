@@ -1,21 +1,5 @@
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
-
-import numpy as np
 import pickle
-import cv2
-from skimage.feature import hog
-from sklearn.svm import LinearSVC
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-import glob
-import time
-
-from scipy.ndimage.measurements import label
-
-# Import everything needed to edit/save/watch video clips
 from moviepy.editor import VideoFileClip
-from IPython.display import HTML
 
 from object_detector import ObjectDetector
 import config
